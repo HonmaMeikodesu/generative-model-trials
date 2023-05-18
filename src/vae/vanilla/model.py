@@ -28,7 +28,7 @@ class Encoder(nn.Module):
             nn.LeakyReLU(0.2),
             nn.Conv2d(64, 128, 3, 2),
             nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2)
+            nn.Sigmoid()
         )
 
         self.fc1 = nn.Linear(mid_num, inter_size)
@@ -60,7 +60,7 @@ class Decoder(nn.Module):
             nn.ConvTranspose2d(64, 32, 3, 2),
             nn.BatchNorm2d(32),
             nn.LeakyReLU(0.2),
-            nn.ConvTranspose2d(32, in_channels, 4, 2),
+            nn.ConvTranspose2d(32, in_channels, 4, 2, 2),
             nn.BatchNorm2d(3),
             nn.LeakyReLU(0.2),
         )
@@ -87,4 +87,4 @@ class VAE(nn.Module):
 
         output = self.decoder(z)
 
-        return output
+        return output, distribution, mean, log_var
