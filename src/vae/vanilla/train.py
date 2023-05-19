@@ -10,6 +10,7 @@ from torch import distributions
 from model import VAE
 from torch.optim import Adam
 from torch.nn.utils import clip_grad
+from torch.nn.functional import mse_loss
 import time
 
 with open(Path(__file__).parent / "hps.json") as hps_fd:
@@ -23,7 +24,8 @@ train_loader = DataLoader(train_dataset, hps["batch_size"], True)
 
 val_loader = DataLoader(val_dataset, hps["batch_size"], True)
 
-recon_loss = nn.MSELoss()
+kl_loss = lambda mu, logvar: -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+recon_loss = lambda recon_x, x: mse_loss(recon_x, x, size_average=False)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -41,24 +43,22 @@ def train():
             img = img.to(device)
             output, posterior_pdf, mean, log_var = model(img)
 
-            normal_distribution = distributions.Normal(torch.zeros_like(mean).to(device), torch.ones_like(log_var).to(device))
 
-            loss1 = distributions.kl_divergence(
-                posterior_pdf,
-                normal_distribution
-            ).sum(-1).mean().to(device)
+            kl = kl_loss(mean, log_var)
+            recon = recon_loss(output, img)
 
-            loss2 = recon_loss(output, img).to(device)
 
-            total_loss = loss1 + loss2
+            total_loss = kl + recon
+
+            total_loss = total_loss / img.shape[0]
 
             if time_steps % 10 == 0:
-                print(f"Current time_step: {time_steps}, kl_loss:{loss1.item():.3f}, recon_loss: {loss2.item():.3f}")
+                print(f"Current time_step: {time_steps}, kl_loss:{kl.item():.3f}, recon_loss: {recon.item():.3f}")
 
-                with torch.no_grad():
-                    z = normal_distribution.sample()
-                    output = model.decoder(z)
-                    save_image(output, Path(__file__).parent.parent.parent.parent / "eval" / (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + ".png"), format="png")
+                if time_steps % 200 == 0:
+                    with torch.no_grad():
+                        save_image(output, Path(__file__).parent.parent.parent.parent / "eval" / (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + ".png"), format="png")
+                        torch.save(model.state_dict(), "model.pt")
 
             optimizer.zero_grad()
 
