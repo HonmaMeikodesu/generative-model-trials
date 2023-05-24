@@ -119,8 +119,13 @@ def train():
                 print(f"Current time_step: {time_steps}, Generator: total loss: {loss_gen.item():.3f} loss_g: {loss_g.item():.3f}, kl_loss: {kl.item():.3f}, recon_and_feature_mapping_loss: {loss_r_fm.item():.3f}")
                 print(f"Current time_step: {time_steps}, Discriminator: total loss: {loss_disc.item():.3f}")
 
-                with torch.no_grad():
-                    save_image(post_out, Path(__file__).parent.parent.parent.parent / "eval" / (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + ".png"), format="png")
-            
+                if time_steps % 200 == 0:
+                    with torch.no_grad():
+                        save_image(post_out, Path(__file__).parent.parent.parent.parent / "eval" / (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + ".png"), format="png")
+                        torch.save({
+                            "encoder": encoder.state_dict(),
+                            "generator": generator.state_dict(),
+                            "discriminator": discriminator.state_dict()
+                        }, "model.pt")
 
 train()
