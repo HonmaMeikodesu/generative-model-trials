@@ -2,3 +2,4 @@ datasets
 .DS_Store
 eval
 model.pt
+__pycache__
