@@ -126,6 +126,6 @@ def train():
                             "encoder": encoder.state_dict(),
                             "generator": generator.state_dict(),
                             "discriminator": discriminator.state_dict()
-                        }, "model.pt")
+                        }, "VAE-GAN.pt")
 
 train()

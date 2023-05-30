@@ -58,7 +58,7 @@ def train():
                 if time_steps % 200 == 0:
                     with torch.no_grad():
                         save_image(output, Path(__file__).parent.parent.parent.parent / "eval" / (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + ".png"), format="png")
-                        torch.save(model.state_dict(), "model.pt")
+                        torch.save(model.state_dict(), "VAE.pt")
 
             optimizer.zero_grad()
 

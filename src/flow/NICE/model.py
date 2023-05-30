@@ -2,14 +2,15 @@ import torch
 import torch.nn as nn
 from torch import distributions
 
-additive_coupling_law = lambda x2, mx1, invert: x2 + mx1 if not invert  else x2 - mx1
+additive_coupling_law = lambda x2, mx1, invert = False: x2 + mx1 if not invert  else x2 - mx1
 
 class CouplingLayer(nn.Module):
-    def __init__(self, image_size, mask) -> None:
+    def __init__(self, image_size, batch_size, mask) -> None:
         super(CouplingLayer, self).__init__()
         self.image_size = image_size
+        self.batch_size = batch_size
         data_dim = 1
-        for i in image_size[1:]:
+        for i in image_size:
             data_dim = data_dim * i
 
         self.data_dim = data_dim
@@ -44,7 +45,7 @@ class CouplingLayer(nn.Module):
             Y1 = X1
 
             X2 = X * (1 - self.mask)
-            mX1 = self.coupling_function(X1.view(*self.image_size)).view(self.image_size[0], -1)
+            mX1 = self.coupling_function(X1.view(X.shape[0], *self.image_size)).view(X.shape[0], -1)
             Y2 = additive_coupling_law(X2, mX1) * (1 - self.mask)
             return Y1 + Y2 , log_jacob_det
         else:
@@ -53,42 +54,46 @@ class CouplingLayer(nn.Module):
             X1 = Y1
             
             Y2 = X * (1 - self.mask)
-            mY1 = self.coupling_function(Y1.view(*self.image_size)).view(self.image_size[0], -1)
+            mY1 = self.coupling_function(Y1.view(X.shape[0], *self.image_size)).view(X.shape[0], -1)
             X2 = additive_coupling_law(Y2, mY1, True) * (1 - self.mask)
             return X1 + X2, 1
 
 class ScalingLayer(nn.Module):
     def __init__(self, data_dim) -> None:
-        super().__init__()
-        super.log_scaling_vector = nn.Parameter(torch.randn(1, data_dim, requires_grad=True))
+        super(ScalingLayer, self).__init__()
+        self.log_scaling_vector = nn.Parameter(torch.randn(1, data_dim, requires_grad=True))
 
     def forward(self, X, log_jacob_det, invert = False):
         if not invert:
-            return  torch.exp(self.log_scaling_vector) * X, log_jacob_det + torch.sum(super.log_scaling_vector)
+            return  torch.exp(self.log_scaling_vector) * X, log_jacob_det + torch.sum(self.log_scaling_vector)
         else:
-            return torch.exp(-self.log_scaling_vector) * X, log_jacob_det - torch.sum(super.log_scaling_vector)
+            return torch.exp(-self.log_scaling_vector) * X, log_jacob_det - torch.sum(self.log_scaling_vector)
 
 class NICE(nn.Module):
-    def __init__(self, image_size) -> None:
+    def __init__(self, image_size, batch_size, device) -> None:
+        super(NICE, self).__init__()
+
+        assert image_size[1] % 2 == 0
         assert image_size[2] % 2 == 0
-        assert image_size[3] % 2 == 0
         data_dim = 1
-        for i in image_size[1:]:
+        for i in image_size:
             data_dim = data_dim * i
 
-        super().__init__()
-        self.coupling_layers = nn.ModuleList([ CouplingLayer(image_size, self.get_mask(i, data_dim)) for i in range(4) ])
+        self.data_dim = data_dim
+        
+        self.device = device
+
+        
+        self.coupling_layers = nn.ModuleList([ CouplingLayer(image_size, batch_size, self.get_mask(i, data_dim).to(device)) for i in range(4) ])
 
         self.scaling_layer = ScalingLayer(data_dim)
-
-        self.prior_distribution = distributions.normal.Normal (torch.zeros_like(image_size[0], data_dim), torch.ones_like(image_size[0], data_dim))
 
     def get_mask(self, index, data_dim):
         mask = torch.ones(1, data_dim).detach()
         if (index % 2 == 0):
-            mask[1, ::2] = 0
+            mask[0, 1::2] = 0
         else:
-            mask = 1 - mask
+            mask[0, ::2] = 0
         return mask
     
     def forward(self, X, invert = False):
@@ -100,7 +105,9 @@ class NICE(nn.Module):
         if not invert:
             Z, log_jacob_det = self.f(X)
 
-            MLE = self.prior_distribution.log_prob(Z).mean()
+            prior_distribution = distributions.normal.Normal (torch.zeros(X.shape[0], self.data_dim).to(self.device), torch.ones(X.shape[0], self.data_dim).to(self.device))
+
+            MLE = prior_distribution.log_prob(Z).mean()
 
             return Z, MLE + log_jacob_det
         else:
@@ -129,8 +136,4 @@ class NICE(nn.Module):
 
         for i, flow in enumerate(self.coupling_layers):
             X, log_jacob_det = flow(X, log_jacob_det)
-
-
-cl = CouplingLayer((3, 40, 40), torch.rand(1, 4800))
-
-cl(torch.rand(100, 3, 40, 40), 1, True)
+        return X
