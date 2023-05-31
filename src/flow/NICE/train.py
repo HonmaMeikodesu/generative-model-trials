@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, ToTensor, Normalize
 import torch
 from torch.optim import Adam
+from torch import distributions
 from model import NICE
 import time
 
@@ -12,13 +13,13 @@ train_dataset = datasets.ImageFolder(Path(__file__).parent.parent.parent.parent 
 
 val_dataset = datasets.ImageFolder(Path(__file__).parent.parent.parent.parent / "datasets" / "pokemon" / "train", transform=Compose([ToTensor(), Normalize(-0.5, 1)]))
 
-train_loader = DataLoader(train_dataset, 64, True)
+train_loader = DataLoader(train_dataset, 256, True)
 
-val_loader = DataLoader(val_dataset, 64, True)
+val_loader = DataLoader(val_dataset, 256, True)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-model = NICE((3, 40, 40), 64, device)
+model = NICE((3, 40, 40), 256, device)
 
 model.to(device=device)
 
@@ -47,7 +48,8 @@ def train():
 
                 if time_steps % 200 == 0:
                     with torch.no_grad():
-                        X = model(Z, True)
+                        _Z = distributions.Normal(torch.zeros_like(Z), torch.ones_like(Z)).sample()
+                        X = model(_Z, True)
 
                         X = X.view(img.shape)
 
