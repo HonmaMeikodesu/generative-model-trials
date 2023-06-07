@@ -1,0 +1,3 @@
+[submodule "src/diffusion/PyTorch-DDPM"]
+	path = src/diffusion/PyTorch-DDPM
+	url = git@github.com:LinXueyuanStdio/PyTorch-DDPM.git

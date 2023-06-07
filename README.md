@@ -26,3 +26,6 @@
 ## Experiment result
 
 ![result](./assets/NICE/result.png)
+
+## DDPM
+[DDPM](https://github.com/LinXueyuanStdio/PyTorch-DDPM)
